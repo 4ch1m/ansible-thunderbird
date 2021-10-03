@@ -1,0 +1,90 @@
+- name: Thunderbird - Linux build
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    repo:
+      mozilla: https://hg.mozilla.org/mozilla-central
+      comm: https://hg.mozilla.org/comm-central
+
+  tasks:
+    - name: check for 64-bit linux
+      shell:
+        cmd: "uname -m"
+      register: check_64bit
+      changed_when: false
+      failed_when: check_64bit.stdout != "x86_64"
+
+    - name: install packages
+      become: yes
+      package:
+        state: present
+        name:
+          - git
+          - mercurial
+          - python3
+          - python3-pip
+
+    - name: clone mozilla-central
+      community.general.hg:
+        repo: "{{ repo.mozilla }}"
+        dest: "{{ playbook_dir }}/source"
+        force: yes
+        purge: yes
+
+    - name: clone comm-central
+      community.general.hg:
+        repo: "{{ repo.comm }}"
+        dest: "{{ playbook_dir }}/source/comm"
+        force: yes
+        purge: yes
+
+    - name: bootstrap
+      shell:
+        chdir: "{{ playbook_dir }}/source"
+        cmd: >
+          ./mach
+          --no-interactive
+          bootstrap
+          --application-choice "Firefox for Desktop"
+
+    - name: mozconfig setup
+      lineinfile:
+        path: "{{ playbook_dir }}/source/mozconfig"
+        create: yes
+        line: "{{ item }}"
+      loop:
+        - "ac_add_options --enable-application=comm/mail"
+        - "ac_add_options --with-app-basename=Thunderbird"
+
+    - name: build
+      shell:
+        chdir: "{{ playbook_dir }}/source"
+        cmd: ./mach build
+
+    - name: package
+      shell:
+        chdir: "{{ playbook_dir }}/source"
+        cmd: ./mach package
+
+    - name: find tarballs
+      find:
+        paths: "{{ playbook_dir }}/source/obj-x86_64-pc-linux-gnu/dist"
+        use_regex: yes
+        patterns: "^thunderbird-.*.tar.bz2$"
+      register: tarballs
+
+    - set_fact:
+        latest_tarball: "{{ (tarballs.files | sort(attribute='ctime') | map(attribute='path') | reverse | list)[0] | basename }}"
+
+    - name: success message
+      debug:
+        msg:
+          - "┌──────────────────────┐"
+          - "│                      │"
+          - "│   BUILD SUCCESSFUL   │"
+          - "│                      │"
+          - "├──────────────────────┴─────────────────────────────────{{ latest_tarball | regex_replace('.', '─') }}┐"
+          - "│ latest package: ./source/obj-x86_64-pc-linux-gnu/dist/{{ latest_tarball }} │"
+          - "└────────────────────────────────────────────────────────{{ latest_tarball | regex_replace('.', '─') }}┘"

@@ -1,0 +1,16 @@
+version: "3.3"
+
+services:
+
+  debian:
+    image: debian
+    volumes:
+      - .:/ansible-thunderbird
+    entrypoint: >
+      bash -c "
+      apt-get update &&
+      apt-get install -y ansible &&
+      cd /ansible-thunderbird &&
+      ansible-galaxy collection install -r collections/requirements.yml -p collections/ &&
+      ansible-playbook thunderbird.yml
+      "
