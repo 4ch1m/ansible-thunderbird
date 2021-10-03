@@ -1,6 +1,4 @@
 # ansible-thunderbird
-A fully automated build script for Thunderbird using Ansible. 
-
 > A fully automated build script for [Thunderbird](https://www.thunderbird.net/) using Ansible.
 
 There are two ways to build (and package) the app:
